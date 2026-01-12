@@ -9,7 +9,6 @@ import org.springframework.batch.infrastructure.item.database.JdbcBatchItemWrite
 import org.springframework.batch.infrastructure.item.file.FlatFileItemReader;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.transaction.PlatformTransactionManager;
 
 import br.com.victorhugolgr.lab.dto.User;
 
@@ -18,10 +17,11 @@ public class ImportUsersJobConfig {
 
     @Bean
     public Step step1(JobRepository jobRepository,
-            FlatFileItemReader<User> reader, JdbcBatchItemWriter<User> writer) {
+            FlatFileItemReader<User> reader, UserItemProcessor processor, JdbcBatchItemWriter<User> writer) {
         return new StepBuilder("csv-to-db-step", jobRepository)
                 .<User, User>chunk(10)
                 .reader(reader)
+                .processor(processor)
                 .writer(writer)
                 .build();
     }

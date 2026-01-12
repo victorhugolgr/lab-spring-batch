@@ -9,6 +9,7 @@ Projeto de laboratório desenvolvido com **Spring Boot** e **Spring Batch** para
 Criar um pipeline de processamento em lote que:
 - Leia dados de um arquivo CSV (`users.csv`)
 - Processe os registros em chunks de 10 itens
+- Filtre registros de acordo com critérios definidos
 - Escreva os dados no banco de dados MySQL
 - Gerencie o estado da execução através do Spring Batch
 
@@ -38,7 +39,8 @@ lab-spring-batch/
 │   │   │           └── importuser/
 │   │   │               ├── ImportUsersJobConfig.java # Job de importação
 │   │   │               ├── UserReaderConfig.java     # Leitor CSV
-│   │   │               └── UserWriterConfig.java     # Escritor banco de dados
+│   │   │               ├── UserWriterConfig.java     # Escritor banco de dados
+│   │   │               └── UserItemProcessor.java    # Processador/Filtro
 │   │   └── resources/
 │   │       ├── application.properties                # Configurações da aplicação
 │   │       ├── schema.sql                            # Script de criação de tabelas
@@ -108,6 +110,28 @@ Configura o leitor de arquivo CSV:
 #### 3. **UserWriterConfig**
 Configura o escritor no banco de dados usando JDBC
 
+#### 4. **UserItemProcessor** ✨ (Nova Funcionalidade)
+Implementa o processamento e filtragem de registros:
+- Filtra apenas usuários com **ID par**
+- Descarta automaticamente registros com ID ímpar
+- Retorna `null` para descartar items
+- Permite adicionar lógica de negócio customizada
+
+```java
+@Component
+public class UserItemProcessor implements ItemProcessor<User, User> {
+    @Override
+    public User process(User user) throws Exception {
+        // Filtra apenas usuários com ID par
+        if (user.getId() % 2 == 0) {
+            return user;
+        }
+        // Retorna null para descartar registros com ID ímpar
+        return null;
+    }
+}
+```
+
 ## 🚀 Como Executar
 
 ### Pré-requisitos
@@ -145,16 +169,24 @@ users.csv (1000 registros)
     ↓
 FlatFileItemReader (Lê CSV)
     ↓
-Chunk Processing (10 por chunk = 100 chunks)
+UserItemProcessor (Filtra IDs pares) ✨
+    ↓
+Chunk Processing (10 por chunk)
     ↓
 JdbcBatchItemWriter (Escreve em batches)
     ↓
-MySQL Database (Tabela users)
+MySQL Database (Tabela users - apenas pares)
 ```
+
+**Resultado esperado:**
+- **Registros lidos:** 1000
+- **Registros processados:** 500 (apenas IDs pares)
+- **Registros salvos:** 500
 
 ## 🔍 Características do Spring Batch
 
 - ✅ **Processamento em Chunks**: Os dados são processados em lotes de 10 registros
+- ✅ **Filtragem com ItemProcessor**: Implementa lógica de negócio e filtra registros ✨
 - ✅ **Rastreamento de Execução**: Mantém histórico de execuções do job
 - ✅ **Recuperação de Falhas**: Suporta reinicialização de jobs após falhas
 - ✅ **Escalabilidade**: Preparado para processar grandes volumes de dados
@@ -167,6 +199,52 @@ O Spring Batch mantém tabelas de metadados:
 - `BATCH_JOB_EXECUTION` - Execuções do job
 - `BATCH_STEP_EXECUTION` - Execuções de steps
 - `BATCH_STEP_EXECUTION_CONTEXT` - Contexto de execução
+
+### Monitorar Resultados da Filtragem
+
+Você pode verificar o número de registros processados e salvos:
+
+```sql
+-- Total de registros na tabela users (apenas pares)
+SELECT COUNT(*) FROM users;
+
+-- Verificar alguns registros salvos
+SELECT * FROM users LIMIT 10;
+
+-- Verificar que todos os IDs são pares
+SELECT id, name, email FROM users WHERE id % 2 != 0;
+-- Resultado: nenhum registro
+```
+
+## 🔧 Personalizando o ItemProcessor
+
+Para implementar diferentes filtros, edite a classe `UserItemProcessor.java`:
+
+```java
+// Exemplo 1: Filtrar apenas IDs maiores que 500
+public User process(User user) throws Exception {
+    if (user.getId() > 500) {
+        return user;
+    }
+    return null;
+}
+
+// Exemplo 2: Filtrar por padrão de email
+public User process(User user) throws Exception {
+    if (user.getEmail().contains("@example.com")) {
+        return user;
+    }
+    return null;
+}
+
+// Exemplo 3: Múltiplos critérios
+public User process(User user) throws Exception {
+    if (user.getId() % 2 == 0 && user.getId() > 100) {
+        return user;
+    }
+    return null;
+}
+```
 
 ## 🐛 Troubleshooting
 
