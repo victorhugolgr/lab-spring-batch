@@ -7,7 +7,8 @@ Projeto de laboratório desenvolvido com **Spring Boot** e **Spring Batch** para
 ## 🎯 Objetivo
 
 Criar um pipeline de processamento em lote que:
-- Leia dados de um arquivo CSV (`users.csv`)
+- **Leia múltiplos arquivos CSV** de uma pasta parametrizada ✨
+- Obtenha o caminho da pasta da **tabela PROPERTIES** do banco ✨
 - Processe os registros em chunks de 10 itens
 - Filtre registros de acordo com critérios definidos
 - Escreva os dados no banco de dados MySQL
@@ -30,24 +31,37 @@ lab-spring-batch/
 ├── src/
 │   ├── main/
 │   │   ├── java/
-│   │   │   └── br/com/victorhugolgr/lab/
-│   │   │       ├── SpringBatchApplication.java       # Classe principal
-│   │   │       ├── dto/
-│   │   │       │   └── User.java                     # Record de usuário
-│   │   │       ├── config/                           # Configurações
-│   │   │       └── jobs/
-│   │   │           └── importuser/
-│   │   │               ├── ImportUsersJobConfig.java # Job de importação
-│   │   │               ├── UserReaderConfig.java     # Leitor CSV
-│   │   │               ├── UserWriterConfig.java     # Escritor banco de dados
-│   │   │               └── UserItemProcessor.java    # Processador/Filtro
+│   │   │   ├── br/com/victorhugolgr/lab/
+│   │   │   │   ├── SpringBatchApplication.java           # Classe principal
+│   │   │   │   ├── dto/
+│   │   │   │   │   └── User.java                         # Record de usuário
+│   │   │   │   └── jobs/
+│   │   │   │       └── importuser/
+│   │   │   │           ├── ImportUsersJobConfig.java     # Job de importação
+│   │   │   │           ├── UserReaderConfig.java         # Leitor multi-arquivo parametrizado ✨
+│   │   │   │           ├── UserFieldSetMapper.java       # Mapper para records ✨
+│   │   │   │           ├── UserWriterConfig.java         # Escritor banco de dados
+│   │   │   │           └── UserItemProcessor.java        # Processador/Filtro
+│   │   │   │
+│   │   │   ├── br/com/victorhugolgr/domain/             # Entidades
+│   │   │   │   └── Property.java                         # Entidade JPA para properties ✨
+│   │   │   │
+│   │   │   ├── br/com/victorhugolgr/repository/         # Repositórios
+│   │   │   │   └── PropertyRepository.java               # Repositório JPA ✨
+│   │   │   │
+│   │   │   └── br/com/victorhugolgr/service/            # Serviços
+│   │   │       └── PropertyService.java                  # Serviço de properties ✨
+│   │   │
 │   │   └── resources/
-│   │       ├── application.properties                # Configurações da aplicação
-│   │       ├── schema.sql                            # Script de criação de tabelas
-│   │       └── users.csv                             # Arquivo com 1000 registros
+│   │       ├── application.properties                    # Configurações da aplicação
+│   │       ├── schema.sql                                # Script de criação de tabelas
+│   │       └── csv/                                      # Pasta com arquivos CSV ✨
+│   │           ├── users1.csv
+│   │           ├── users2.csv
+│   │           └── ...
 │   └── test/
-│       └── java/...                                  # Testes
-└── pom.xml                                           # Configuração Maven
+│       └── java/...                                      # Testes
+└── pom.xml                                               # Configuração Maven
 ```
 
 ## 📊 Modelo de Dados
@@ -79,58 +93,93 @@ spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
 
 ## 📝 Dados de Teste
 
-O arquivo `users.csv` contém **1000 registros** de usuários no seguinte formato:
+Os arquivos CSV na pasta configurada em PROPERTIES com ID `PATH_CSV` contêm registros de usuários:
 
 ```csv
 id,name,email
 1,User0001,user1@example.com
 2,User0002,user2@example.com
 ...
-1000,User1000,user1000@example.com
+```
+
+### Configurar PATH_CSV
+
+1. **Via SQL** (ao criar o banco):
+```sql
+INSERT INTO properties (id, value, description) 
+VALUES ('PATH_CSV', '/home/victorhugolgr/git/lab-spring-batch/data/csv', 'Caminho dos arquivos CSV');
+```
+
+2. **Criar a pasta com arquivos CSV**:
+```bash
+mkdir -p /home/victorhugolgr/git/lab-spring-batch/data/csv
+cp users.csv /home/victorhugolgr/git/lab-spring-batch/data/csv/
 ```
 
 ## ⚙️ Configuração do Job
 
 ### Componentes Principais
 
-#### 1. **ImportUsersJobConfig**
-Define o job de importação de usuários com:
-- **Step:** `csv-to-db-step`
-- **Chunk Size:** 10 registros por chunk
-- **Reader:** `FlatFileItemReader` (lê do CSV)
-- **Writer:** `JdbcBatchItemWriter` (escreve no banco)
+#### 1. **Property & PropertyRepository** ✨
+Gerencia configurações parametrizadas no banco de dados:
+```java
+@Entity
+@Table(name = "properties")
+public class Property {
+    @Id
+    private String id;        // Ex: "PATH_CSV"
+    private String value;     // Ex: "/home/.../csv"
+    private String description;
+}
+```
 
-#### 2. **UserReaderConfig**
-Configura o leitor de arquivo CSV:
-- Recurso: `users.csv`
-- Delimitador: Vírgula
-- Campos: `id`, `name`, `email`
-- Tipo alvo: `User.class`
+#### 2. **PropertyService** ✨
+Serviço para leitura de properties do banco:
+```java
+@Service
+@RequiredArgsConstructor
+public class PropertyService {
+    private final PropertyRepository repository;
+    
+    public String getPropertyValueById(String id) {
+        return repository.findById(id)
+            .map(property -> property.getValue())
+            .orElseThrow(() -> new RuntimeException("Property not found"));
+    }
+}
+```
 
-#### 3. **UserWriterConfig**
+#### 3. **UserReaderConfig** ✨
+Configura o leitor de **múltiplos arquivos CSV** com caminho parametrizado:
+- **MultiResourceItemReader**: Processa vários arquivos em sequência ✨
+- **Caminho:** Lido dinamicamente de `PropertyService` (tabela PROPERTIES)
+- **Delimitador:** Vírgula
+- **Campos:** `id`, `name`, `email`
+- **Skip Header:** Ignora primeira linha
+
+#### 4. **UserFieldSetMapper** ✨
+Mapper customizado para mapear CSV para **records** (Java 14+):
+```java
+public class UserFieldSetMapper implements FieldSetMapper<User> {
+    @Override
+    public User mapFieldSet(FieldSet fieldSet) throws BindException {
+        return new User(
+            fieldSet.readLong("id"),
+            fieldSet.readString("name"),
+            fieldSet.readString("email")
+        );
+    }
+}
+```
+
+#### 5. **UserWriterConfig**
 Configura o escritor no banco de dados usando JDBC
 
-#### 4. **UserItemProcessor** ✨ (Nova Funcionalidade)
+#### 6. **UserItemProcessor**
 Implementa o processamento e filtragem de registros:
 - Filtra apenas usuários com **ID par**
 - Descarta automaticamente registros com ID ímpar
 - Retorna `null` para descartar items
-- Permite adicionar lógica de negócio customizada
-
-```java
-@Component
-public class UserItemProcessor implements ItemProcessor<User, User> {
-    @Override
-    public User process(User user) throws Exception {
-        // Filtra apenas usuários com ID par
-        if (user.getId() % 2 == 0) {
-            return user;
-        }
-        // Retorna null para descartar registros com ID ímpar
-        return null;
-    }
-}
-```
 
 ## 🚀 Como Executar
 
@@ -141,18 +190,24 @@ public class UserItemProcessor implements ItemProcessor<User, User> {
 
 ### Passos
 
-1. **Criar o banco de dados** (opcional, será criado automaticamente):
-```sql
-CREATE DATABASE USER_DB;
+1. **Criar a pasta de CSV:**
+```bash
+mkdir -p /home/victorhugolgr/git/lab-spring-batch/data/csv
 ```
 
-2. **Compilar o projeto:**
+2. **Copiar arquivos CSV:**
 ```bash
-cd lab-spring-batch/lab/lab
+cp /home/victorhugolgr/git/lab-spring-batch/lab/lab/src/main/resources/users.csv \
+   /home/victorhugolgr/git/lab-spring-batch/data/csv/
+```
+
+3. **Compilar o projeto:**
+```bash
+cd /home/victorhugolgr/git/lab-spring-batch/lab/lab
 mvn clean install
 ```
 
-3. **Executar a aplicação:**
+4. **Executar a aplicação:**
 ```bash
 mvn spring-boot:run
 ```
@@ -162,31 +217,49 @@ Ou:
 java -jar target/lab-0.0.1-SNAPSHOT.jar
 ```
 
+### Verificar Execução
+
+Após a execução, consulte o banco:
+```sql
+-- Ver quanto foi lido
+SELECT COUNT(*) FROM batch_step_execution WHERE step_name = 'csv-to-db-step';
+
+-- Ver registros salvos (apenas pares)
+SELECT COUNT(*) FROM users;
+SELECT * FROM users LIMIT 5;
+```
+
 ## 📊 Fluxo de Execução
 
 ```
-users.csv (1000 registros)
+Propriedades do Banco (TABLE: properties)
     ↓
-FlatFileItemReader (Lê CSV)
+PATH_CSV = "/home/.../data/csv"
     ↓
-UserItemProcessor (Filtra IDs pares) ✨
+Listar arquivos CSV da pasta ✨
     ↓
-Chunk Processing (10 por chunk)
+Para cada arquivo CSV:
+  ├── MultiResourceItemReader (Lê arquivo) ✨
+  ├── UserFieldSetMapper (Mapeia para record) ✨
+  ├── UserItemProcessor (Filtra IDs pares)
+  ├── Chunk Processing (10 por chunk)
+  └── JdbcBatchItemWriter (Escreve em batch)
     ↓
-JdbcBatchItemWriter (Escreve em batches)
-    ↓
-MySQL Database (Tabela users - apenas pares)
+MySQL Database (users - apenas pares)
 ```
 
-**Resultado esperado:**
-- **Registros lidos:** 1000
-- **Registros processados:** 500 (apenas IDs pares)
-- **Registros salvos:** 500
+**Exemplo de resultado com 3 arquivos de 1000 registros cada:**
+- **Registros lidos:** 3000
+- **Registros processados:** 1500 (apenas IDs pares)
+- **Registros salvos:** 1500
 
 ## 🔍 Características do Spring Batch
 
+- ✅ **MultiResourceItemReader**: Processa múltiplos arquivos em sequência ✨
+- ✅ **Properties Parametrizadas**: Configurações no banco de dados ✨
+- ✅ **Record Mapping**: Suporte a Java Records com FieldSetMapper customizado ✨
 - ✅ **Processamento em Chunks**: Os dados são processados em lotes de 10 registros
-- ✅ **Filtragem com ItemProcessor**: Implementa lógica de negócio e filtra registros ✨
+- ✅ **Filtragem com ItemProcessor**: Implementa lógica de negócio e filtra registros
 - ✅ **Rastreamento de Execução**: Mantém histórico de execuções do job
 - ✅ **Recuperação de Falhas**: Suporta reinicialização de jobs após falhas
 - ✅ **Escalabilidade**: Preparado para processar grandes volumes de dados

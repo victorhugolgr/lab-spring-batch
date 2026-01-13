@@ -6,7 +6,7 @@ import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.Step;
 import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.infrastructure.item.database.JdbcBatchItemWriter;
-import org.springframework.batch.infrastructure.item.file.FlatFileItemReader;
+import org.springframework.batch.infrastructure.item.file.MultiResourceItemReader;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -17,7 +17,7 @@ public class ImportUsersJobConfig {
 
     @Bean
     public Step step1(JobRepository jobRepository,
-            FlatFileItemReader<User> reader, UserItemProcessor processor, JdbcBatchItemWriter<User> writer) {
+            MultiResourceItemReader<User> reader, UserItemProcessor processor, JdbcBatchItemWriter<User> writer) {
         return new StepBuilder("csv-to-db-step", jobRepository)
                 .<User, User>chunk(10)
                 .reader(reader)

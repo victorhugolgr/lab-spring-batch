@@ -10,7 +10,7 @@ public class UserItemProcessor implements ItemProcessor<User, User>{
 
     @Override
     public User process(User user) throws Exception {
-        if(user.id() %2 == 0) {
+        if(user.getId() %2 == 0) {
             return user;
         }
         return null;
