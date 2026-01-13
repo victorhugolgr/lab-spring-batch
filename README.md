@@ -11,6 +11,7 @@ Criar um pipeline de processamento em lote que:
 - Obtenha o caminho da pasta da **tabela PROPERTIES** do banco ✨
 - Processe os registros em chunks de 10 itens
 - Filtre registros de acordo com critérios definidos
+- **Mova arquivos processados** para pasta de histórico ✨
 - Escreva os dados no banco de dados MySQL
 - Gerencie o estado da execução através do Spring Batch
 
@@ -32,36 +33,39 @@ lab-spring-batch/
 │   ├── main/
 │   │   ├── java/
 │   │   │   ├── br/com/victorhugolgr/lab/
-│   │   │   │   ├── SpringBatchApplication.java           # Classe principal
+│   │   │   │   ├── SpringBatchApplication.java               # Classe principal
 │   │   │   │   ├── dto/
-│   │   │   │   │   └── User.java                         # Record de usuário
+│   │   │   │   │   └── User.java                             # Record de usuário
 │   │   │   │   └── jobs/
 │   │   │   │       └── importuser/
-│   │   │   │           ├── ImportUsersJobConfig.java     # Job de importação
-│   │   │   │           ├── UserReaderConfig.java         # Leitor multi-arquivo parametrizado ✨
-│   │   │   │           ├── UserFieldSetMapper.java       # Mapper para records ✨
-│   │   │   │           ├── UserWriterConfig.java         # Escritor banco de dados
-│   │   │   │           └── UserItemProcessor.java        # Processador/Filtro
+│   │   │   │           ├── ImportUsersJobConfig.java         # Job de importação
+│   │   │   │           ├── UserReaderConfig.java             # Leitor multi-arquivo parametrizado ✨
+│   │   │   │           ├── UserFieldSetMapper.java           # Mapper para records ✨
+│   │   │   │           ├── UserWriterConfig.java             # Escritor banco de dados
+│   │   │   │           ├── UserItemProcessor.java            # Processador/Filtro
+│   │   │   │           └── FileMovementStepExecutionListener.java # Mover arquivos após sucesso ✨
 │   │   │   │
-│   │   │   ├── br/com/victorhugolgr/domain/             # Entidades
-│   │   │   │   └── Property.java                         # Entidade JPA para properties ✨
+│   │   │   ├── br/com/victorhugolgr/domain/                 # Entidades
+│   │   │   │   └── Property.java                             # Entidade JPA para properties ✨
 │   │   │   │
-│   │   │   ├── br/com/victorhugolgr/repository/         # Repositórios
-│   │   │   │   └── PropertyRepository.java               # Repositório JPA ✨
+│   │   │   ├── br/com/victorhugolgr/repository/             # Repositórios
+│   │   │   │   └── PropertyRepository.java                   # Repositório JPA ✨
 │   │   │   │
-│   │   │   └── br/com/victorhugolgr/service/            # Serviços
-│   │   │       └── PropertyService.java                  # Serviço de properties ✨
+│   │   │   └── br/com/victorhugolgr/service/                # Serviços
+│   │   │       └── PropertyService.java                      # Serviço de properties ✨
 │   │   │
 │   │   └── resources/
-│   │       ├── application.properties                    # Configurações da aplicação
-│   │       ├── schema.sql                                # Script de criação de tabelas
-│   │       └── csv/                                      # Pasta com arquivos CSV ✨
+│   │       ├── application.properties                        # Configurações da aplicação
+│   │       ├── schema.sql                                    # Script de criação de tabelas
+│   │       └── csv/                                          # Pasta com arquivos CSV ✨
 │   │           ├── users1.csv
 │   │           ├── users2.csv
-│   │           └── ...
+│   │           └── processed/                                # Arquivos processados ✨
+│   │               ├── users1.csv
+│   │               └── users2.csv
 │   └── test/
-│       └── java/...                                      # Testes
-└── pom.xml                                               # Configuração Maven
+│       └── java/...                                          # Testes
+└── pom.xml                                                   # Configuração Maven
 ```
 
 ## 📊 Modelo de Dados
@@ -102,17 +106,20 @@ id,name,email
 ...
 ```
 
-### Configurar PATH_CSV
+### Configurar PATH_CSV e PATH_CSV_PROCESSED
 
 1. **Via SQL** (ao criar o banco):
 ```sql
 INSERT INTO properties (id, value, description) 
 VALUES ('PATH_CSV', '/home/victorhugolgr/git/lab-spring-batch/data/csv', 'Caminho dos arquivos CSV');
+
+INSERT INTO properties (id, value, description) 
+VALUES ('PATH_CSV_PROCESSED', '/home/victorhugolgr/git/lab-spring-batch/data/csv/processed', 'Caminho para arquivos processados');
 ```
 
-2. **Criar a pasta com arquivos CSV**:
+2. **Criar as pastas com arquivos CSV**:
 ```bash
-mkdir -p /home/victorhugolgr/git/lab-spring-batch/data/csv
+mkdir -p /home/victorhugolgr/git/lab-spring-batch/data/csv/processed
 cp users.csv /home/victorhugolgr/git/lab-spring-batch/data/csv/
 ```
 
@@ -156,6 +163,7 @@ Configura o leitor de **múltiplos arquivos CSV** com caminho parametrizado:
 - **Delimitador:** Vírgula
 - **Campos:** `id`, `name`, `email`
 - **Skip Header:** Ignora primeira linha
+- **Tratamento sem exceção**: Se nenhum arquivo encontrado, apenas registra log ✨
 
 #### 4. **UserFieldSetMapper** ✨
 Mapper customizado para mapear CSV para **records** (Java 14+):
@@ -180,6 +188,32 @@ Implementa o processamento e filtragem de registros:
 - Filtra apenas usuários com **ID par**
 - Descarta automaticamente registros com ID ímpar
 - Retorna `null` para descartar items
+
+#### 7. **FileMovementStepExecutionListener** ✨
+Listener que move arquivos processados após sucesso:
+```java
+@Component
+@RequiredArgsConstructor
+public class FileMovementStepExecutionListener implements StepExecutionListener {
+    private final PropertyService propertyService;
+    
+    @Override
+    public ExitStatus afterStep(StepExecution stepExecution) {
+        if(stepExecution.getExitStatus().equals(ExitStatus.COMPLETED)) {
+            // Move arquivos de PATH_CSV para PATH_CSV_PROCESSED
+            moveProcessedFilesToProcessedFolder();
+        }
+        return stepExecution.getExitStatus();
+    }
+}
+```
+
+**Funcionalidades:**
+- ✅ Move arquivos processados para pasta de histórico
+- ✅ Cria a pasta de destino se não existir
+- ✅ Logs detalhados com emojis para fácil identificação
+- ✅ Trata erros sem quebrar o pipeline
+- ✅ Usa `REPLACE_EXISTING` para arquivos duplicados
 
 ## 🚀 Como Executar
 
@@ -235,6 +269,7 @@ SELECT * FROM users LIMIT 5;
 Propriedades do Banco (TABLE: properties)
     ↓
 PATH_CSV = "/home/.../data/csv"
+PATH_CSV_PROCESSED = "/home/.../data/csv/processed"
     ↓
 Listar arquivos CSV da pasta ✨
     ↓
@@ -245,19 +280,25 @@ Para cada arquivo CSV:
   ├── Chunk Processing (10 por chunk)
   └── JdbcBatchItemWriter (Escreve em batch)
     ↓
-MySQL Database (users - apenas pares)
+FileMovementStepExecutionListener (Mover arquivo) ✨
+    ↓
+MySQL Database (users - apenas pares) + Arquivo movido para processed/
 ```
 
 **Exemplo de resultado com 3 arquivos de 1000 registros cada:**
 - **Registros lidos:** 3000
 - **Registros processados:** 1500 (apenas IDs pares)
 - **Registros salvos:** 1500
+- **Arquivos movidos:** 3 (para pasta processed/)
 
 ## 🔍 Características do Spring Batch
 
 - ✅ **MultiResourceItemReader**: Processa múltiplos arquivos em sequência ✨
 - ✅ **Properties Parametrizadas**: Configurações no banco de dados ✨
 - ✅ **Record Mapping**: Suporte a Java Records com FieldSetMapper customizado ✨
+- ✅ **Movimentação de Arquivos**: Move arquivos processados para pasta de histórico ✨
+- ✅ **Tratamento de Ausência de Arquivos**: Apenas log, sem exceção ✨
+- ✅ **StepExecutionListener**: Rastreamento e ações após conclusão do step ✨
 - ✅ **Processamento em Chunks**: Os dados são processados em lotes de 10 registros
 - ✅ **Filtragem com ItemProcessor**: Implementa lógica de negócio e filtra registros
 - ✅ **Rastreamento de Execução**: Mantém histórico de execuções do job

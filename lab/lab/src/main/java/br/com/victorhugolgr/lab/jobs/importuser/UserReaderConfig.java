@@ -18,9 +18,11 @@ import org.springframework.core.io.Resource;
 import br.com.victorhugolgr.lab.dto.User;
 import br.com.victorhugolgr.lab.service.PropertyService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Configuration
 @RequiredArgsConstructor
+@Slf4j
 public class UserReaderConfig {
 
     private final PropertyService propertyService;
@@ -55,13 +57,15 @@ public class UserReaderConfig {
         var folder = new File(csvPath);
 
         if(!folder.exists() || !folder.isDirectory()) {
-            throw new RuntimeException("CSV path is invalid");
+            log.warn("⚠️ O caminho especificado não é uma pasta válida: {}", csvPath);
+            return new Resource[0];
         }
 
         var csvFiles = folder.listFiles((dir, name) -> name.toLowerCase().endsWith(".csv"));
 
         if(csvFiles == null || csvFiles.length == 0) {
-            throw new RuntimeException("No CSV files found in the specified path");
+            log.warn("⚠️ Nenhum arquivo CSV encontrado na pasta: {}", csvPath);
+            return new Resource[0];
         }
 
         List<Resource> resources = Arrays.stream(csvFiles)

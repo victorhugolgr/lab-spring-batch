@@ -11,9 +11,13 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import br.com.victorhugolgr.lab.dto.User;
+import lombok.RequiredArgsConstructor;
 
 @Configuration
+@RequiredArgsConstructor
 public class ImportUsersJobConfig {
+
+    private final FileMovementStepExecutionListener fileMovementListener;
 
     @Bean
     public Step step1(JobRepository jobRepository,
@@ -23,6 +27,7 @@ public class ImportUsersJobConfig {
                 .reader(reader)
                 .processor(processor)
                 .writer(writer)
+                .listener(fileMovementListener)
                 .build();
     }
 
