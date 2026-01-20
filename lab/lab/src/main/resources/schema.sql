@@ -17,3 +17,15 @@ CREATE TABLE PROPERTIES (
 
 INSERT INTO properties (id, value, description) VALUES ('PATH_CSV_PROCESSED', '/home/victorhugolgr/git/lab-spring-batch/data/csv/processed', 'Caminho para arquivos processados');
 
+-- Tabela de endereços
+CREATE TABLE IF NOT EXISTS ADDRESS (
+    ID BIGINT PRIMARY KEY,
+    ID_USER BIGINT NOT NULL UNIQUE,
+    ADDRESS VARCHAR(500),
+    CITY VARCHAR(100),
+    STATE VARCHAR(100),
+    FOREIGN KEY (ID_USER) REFERENCES USERS(ID)
+);
+
+INSERT INTO properties (id, value, description) VALUES ('PATH_ADDRESS_CSV', '/home/victorhugolgr/git/lab-spring-batch/data/csv-address', 'Caminho da pasta com arquivos CSV de endereços');
+

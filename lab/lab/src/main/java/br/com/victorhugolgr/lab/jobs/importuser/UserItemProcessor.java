@@ -3,13 +3,13 @@ package br.com.victorhugolgr.lab.jobs.importuser;
 import org.springframework.batch.infrastructure.item.ItemProcessor;
 import org.springframework.stereotype.Component;
 
-import br.com.victorhugolgr.lab.dto.User;
+import br.com.victorhugolgr.lab.dto.UserDTO;
 
 @Component
-public class UserItemProcessor implements ItemProcessor<User, User>{
+public class UserItemProcessor implements ItemProcessor<UserDTO, UserDTO>{
 
     @Override
-    public User process(User user) throws Exception {
+    public UserDTO process(UserDTO user) throws Exception {
         if(user.getId() %2 == 0) {
             return user;
         }

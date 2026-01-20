@@ -7,14 +7,14 @@ import org.springframework.batch.infrastructure.item.database.builder.JdbcBatchI
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import br.com.victorhugolgr.lab.dto.User;
+import br.com.victorhugolgr.lab.dto.UserDTO;
 
 @Configuration
 public class UserWriterConfig {
 
     @Bean
-    public JdbcBatchItemWriter<User> writer(DataSource dataSource){
-        return new JdbcBatchItemWriterBuilder<User>()
+    public JdbcBatchItemWriter<UserDTO> writer(DataSource dataSource){
+        return new JdbcBatchItemWriterBuilder<UserDTO>()
                 .dataSource(dataSource)
                 .sql("INSERT INTO USERS (NAME, EMAIL) VALUES (:name, :email)")
                 .beanMapped()

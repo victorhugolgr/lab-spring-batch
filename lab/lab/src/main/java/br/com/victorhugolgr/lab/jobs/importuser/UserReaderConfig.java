@@ -15,7 +15,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 
-import br.com.victorhugolgr.lab.dto.User;
+import br.com.victorhugolgr.lab.dto.UserDTO;
 import br.com.victorhugolgr.lab.service.PropertyService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,24 +30,24 @@ public class UserReaderConfig {
     private static final String PATH_CSV = "PATH_CSV";
 
     @Bean
-    public MultiResourceItemReader<User> multiResourceItemReader() {
-        MultiResourceItemReader<User> reader = new MultiResourceItemReader<>(csvFileItemReader());
+    public MultiResourceItemReader<UserDTO> multiResourceItemReader() {
+        MultiResourceItemReader<UserDTO> reader = new MultiResourceItemReader<>(csvFileItemReader());
         reader.setResources(getCsvResources());
         return reader;
     }
 
 @Bean
-    public FlatFileItemReader<User> csvFileItemReader() {
-        var linearMapper = new DefaultLineMapper<User>() {{
+    public FlatFileItemReader<UserDTO> csvFileItemReader() {
+        var linearMapper = new DefaultLineMapper<UserDTO>() {{
             setLineTokenizer(new DelimitedLineTokenizer() {{
                 setNames("id", "name", "email");
                 setDelimiter(",");
             }});
-            setFieldSetMapper(new BeanWrapperFieldSetMapper<User>() {{
-                setTargetType(User.class);
+            setFieldSetMapper(new BeanWrapperFieldSetMapper<UserDTO>() {{
+                setTargetType(UserDTO.class);
             }});
         }};
-        FlatFileItemReader<User> reader = new FlatFileItemReader<>(linearMapper);
+        FlatFileItemReader<UserDTO> reader = new FlatFileItemReader<>(linearMapper);
         reader.setLinesToSkip(1); // Skip header
         return reader;
     }
